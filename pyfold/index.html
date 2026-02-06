@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pyFold</title>
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+    <style>
+        :root {
+            --primary: #3060c0;
+            --bg: #f5f6fa;
+            --surface: #ffffff;
+            --text: #222;
+            --border: #d0d4dc;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 1200px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        header {
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-weight: 300;
+            font-size: 2.5rem;
+            margin: 0;
+            color: var(--primary);
+        }
+
+        .card {
+            background: var(--surface);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            border: 1px solid var(--border);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        textarea {
+            width: 100%;
+            height: 80px;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            align-items: center;
+        }
+
+        button {
+            background-color: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background-color: #eef0f4;
+            border-color: #b8bcc6;
+        }
+
+        button.primary {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        button.primary:hover {
+            background-color: #254fa3;
+        }
+
+        #status {
+            font-size: 0.9rem;
+            color: #666;
+            margin-left: auto;
+        }
+
+        .viewers-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .viewer-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .viewer-title {
+            font-weight: 600;
+            color: #666;
+            text-align: center;
+        }
+
+        .mol-container {
+            width: 100%;
+            height: 500px;
+            position: relative;
+            background: #eef0f4;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>pyFold</h1>
+        </header>
+        
+        <div class="card">
+            <div class="input-group">
+                <label for="sequence">Protein Sequence (Amino Acids)</label>
+                <textarea id="sequence" spellcheck="false">MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG</textarea>
+            </div>
+
+            <div class="controls">
+                <button onclick="generateReference()">Generate Reference</button>
+                <button class="primary" id="foldBtn" onclick="startFolding()">Fold Protein</button>
+                <button id="stopBtn" onclick="stopFolding()" style="display: none; color: #c03030; border-color: #c03030;">Stop</button>
+                <label for="steps" style="margin-left: 1rem;">Steps</label>
+                <input id="steps" type="number" value="10000" min="1" max="10000" style="width: 80px; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;">
+                <span id="status">Ready</span>
+            </div>
+        </div>
+
+        <div class="viewers-grid">
+            <div class="viewer-wrapper">
+                <div class="viewer-title">Reference Structure</div>
+                <div class="card" style="padding: 0; overflow: hidden;">
+                    <div id="mol-reference" class="viewer_3Dmoljs mol-container" data-backgroundcolor="0xffffff" data-style="cartoon:color=spectrum"></div>
+                </div>
+            </div>
+            <div class="viewer-wrapper">
+                <div class="viewer-title">Folding Simulation</div>
+                <div class="card" style="padding: 0; overflow: hidden;">
+                    <div id="mol-folding" class="viewer_3Dmoljs mol-container" data-backgroundcolor="0xffffff" data-style="cartoon:color=spectrum"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getViewer(id) {
+            return $3Dmol.viewers[id];
+        }
+
+        function renderPDB(pdbData, viewerId) {
+            const v = getViewer(viewerId);
+            if (!v) return;
+            
+            v.clear();
+            v.addModel(pdbData, "pdb");
+
+            v.setStyle({}, {cartoon: {color: 'spectrum'}});
+            
+            v.zoomTo();
+            v.render();
+        }
+
+        async function generateReference() {
+            const seq = document.getElementById('sequence').value;
+            const status = document.getElementById('status');
+            status.innerText = "Fetching reference...";
+            
+            try {
+                const response = await fetch('/generate_reference', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sequence: seq})
+                });
+                const data = await response.json();
+                renderPDB(data.pdb, 'mol-reference');
+                status.innerText = "Reference loaded.";
+            } catch (e) {
+                console.error(e);
+                status.innerText = "Error fetching reference.";
+            }
+        }
+
+        let abortController = null;
+
+        function stopFolding() {
+            if (abortController) abortController.abort();
+        }
+
+        function setFolding(active) {
+            document.getElementById('foldBtn').style.display = active ? 'none' : '';
+            document.getElementById('stopBtn').style.display = active ? '' : 'none';
+        }
+
+        async function startFolding() {
+            const seq = document.getElementById('sequence').value;
+            const status = document.getElementById('status');
+            abortController = new AbortController();
+            setFolding(true);
+            status.innerText = "Connecting to engine...";
+            
+            try {
+                const response = await fetch('/fold', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sequence: seq, steps: parseInt(document.getElementById('steps').value)}),
+                    signal: abortController.signal
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, {stream: true});
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    let latestPdb = null;
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const data = JSON.parse(line);
+                            
+                            if (data.status === 'starting') {
+                                status.innerText = data.message;
+                            } else if (data.status === 'folding') {
+                                latestPdb = data.pdb;
+                                status.innerText = `Folding... Step ${data.step}/${data.total_steps}`;
+                            } else if (data.status === 'completed') {
+                                status.innerText = "Folding completed.";
+                            }
+                        } catch (e) {
+                            console.error("Error parsing JSON line", e);
+                        }
+                    }
+                    if (latestPdb) renderPDB(latestPdb, 'mol-folding');
+                }
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    status.innerText = "Folding stopped.";
+                } else {
+                    console.error(e);
+                    status.innerText = "Error connecting to server.";
+                }
+            } finally {
+                setFolding(false);
+                abortController = null;
+            }
+        }
+    </script>
+</body>
+</html>
+

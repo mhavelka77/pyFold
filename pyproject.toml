@@ -1,0 +1,12 @@
+[project]
+name = "pyfold"
+version = "0.1.0"
+description = "A toy protein folding engine with web UI"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "biopython>=1.86",
+    "fastapi>=0.123.5",
+    "requests>=2.32.5",
+    "uvicorn[standard]>=0.38.0",
+]
