@@ -8,7 +8,7 @@ from pyfold.engine import fold
 
 app = FastAPI()
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 async def get():
     return FileResponse("pyfold/index.html")
 

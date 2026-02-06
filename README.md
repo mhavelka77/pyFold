@@ -1,3 +1,5 @@
+![pyFold](docs/example.png)
+
 # pyFold
 
 Webová aplikace pro simulaci skládání proteinů. Uživatel zadá sekvenci aminokyselin a program v reálném čase vizualizuje průběh skládání pomocí jednoduchého fyzikálního modelu (pružiny, sterika, hydrofobní interakce). Výsledek lze porovnat s referenční strukturou z ESMFold (Meta).
